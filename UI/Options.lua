@@ -130,7 +130,10 @@ end
 local function RegisterPage(panel, label, parent)
     if Settings and Settings.RegisterCanvasLayoutCategory and not parent then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, label)
-        cat.ID = "HardcoreStatTracker"
+        -- Do NOT overwrite cat.ID with our addon name. As of 1.15.9 / 2.5.6,
+        -- Settings.OpenToCategory forwards the ID straight to the C function
+        -- C_SettingsUtil.OpenSettingsPanel(), which only accepts a number - a
+        -- string ID throws "bad argument #1 ... outside of expected range".
         Settings.RegisterAddOnCategory(cat)
         HC.category = cat
     elseif Settings and Settings.RegisterCanvasLayoutSubcategory and HC.category then
@@ -997,8 +1000,16 @@ end
 
 function HC:OpenOptions()
     if not HC.panel then return end
+    -- C_SettingsUtil.OpenSettingsPanel() (what Settings.OpenToCategory calls since
+    -- 1.15.9) is protected, so opening the panel from addon code during combat is
+    -- blocked. Bail out with a note instead of throwing ADDON_ACTION_BLOCKED.
+    if InCombatLockdown() then
+        print("|cffff4444Hardcore Stat Tracker|r: settings can't be opened during combat.")
+        return
+    end
     if Settings and Settings.OpenToCategory and HC.category then
-        Settings.OpenToCategory(HC.category.ID)
+        local id = HC.category.GetID and HC.category:GetID() or HC.category.ID
+        Settings.OpenToCategory(id)
     elseif InterfaceOptionsFrame_OpenToCategory then
         InterfaceOptionsFrame_OpenToCategory(HC.panel)
         InterfaceOptionsFrame_OpenToCategory(HC.panel)
